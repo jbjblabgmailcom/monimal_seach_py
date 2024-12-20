@@ -71,6 +71,50 @@ def extract_numbers_from_raports(input_path):
                     # Dodawanie wyekstrahowanych danych do listy
                     extracted_values.extend(values)
 
+
+                    
+              
+                            
+    return extracted_values
+
+def extract_data_from_raport(input_path, raport_file):
+    # Lista do przechowywania wyekstrahowanych danych liczbowych
+    extracted_values = []
+    filename = os.path.join(input_path, raport_file)
+    # Przechodzenie przez wszystkie pliki PDF w folderze
+
+    file_path = os.path.join(input_path, raport_file)
+    if filename.endswith(".rpt"):
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                text = file.read()
+                values = re.findall(r'(?<!\S)-?\d+(?:\.\d+)?(?!\S)|\b\w+\b', text)
+                #print(values)
+                extracted_values.extend(values)
+                
+        except FileNotFoundError:
+            print(f"Error: The file '{file_path}' was not found.")
+        except IOError as e:
+            print(f"Error reading the file '{file_path}': {e}")
+
+    elif filename.endswith(".pdf"):
+
+        with fitz.open(file_path) as pdf_document:
+
+            for page_num in range(pdf_document.page_count):
+                page = pdf_document[page_num]
+
+
+                text = page.get_text()
+
+
+                values = re.findall(r'(?<!\S)-?\d+(?:\.\d+)?(?!\S)|\b\w+\b', text)
+                        
+
+                extracted_values.extend(values)
+                
+
                     
               
                             
@@ -92,10 +136,13 @@ def convert_to_rounded_float_strings(data, special_strings):
                 break
 
         # Extract the numeric part of the value (including possible decimal points)
-        match = re.search(r'[-+]?\d*\.?\d+', value_str)
+        match = re.search(r'[-+]?\d+([,.]\d+)*', value_str)
         if match:
+            match = match.group()
+            match = match.replace(',', '.')
             #Convert to float and round to 3 decimal places
-            rounded_value = round(float(match.group()), 3)
+            rounded_value = round(float(match), 3)
+
             # Format as a string with 3 decimal places, prefixed by the special character (if any)
             if special_char:
                 return f"{special_char}_{rounded_value:.3f}"
@@ -169,7 +216,7 @@ def pull_nominals_from_excell(dir_path):
 
     excel_file = excel_files[0]
     excel_file_path = os.path.join(script_dir, excel_file)
-    print(f"Processing Excel file: {excel_file}")
+    #print(f"Processing Excel file: {excel_file}")
 
     # Specify the header text to search for
     header_text = "XXX"
@@ -181,9 +228,9 @@ def pull_nominals_from_excell(dir_path):
 
     values_to_filter = {'Model or Drawing Dimension Value'}
     extracted_data = filter_values(extracted_data, values_to_filter)
-    print(extracted_data)
+    #print(extracted_data)
 
-    special_strings = ["Ø", "Rz", "R", "ISO", "M"]
+    special_strings = ["Ø", "Rz", "R", "ISO", "M", "∥", "⏥", "⟂", "⌖"]
     
     extracted_data = convert_to_rounded_float_strings(extracted_data, special_strings)
     print(extracted_data)
@@ -192,81 +239,76 @@ def pull_nominals_from_excell(dir_path):
 
     # Display the results
     for sheet, values in extracted_data.items():
-        print(f"\nSheet: {sheet}")
+        #print(f"\nSheet: {sheet}")
         for idx, value in enumerate(values, start=1):
-            print(f"{idx}: {value}")
+            #print(f"{idx}: {value}")
             list_from_excell.append(value)
     return list_from_excell
 
 
 
 
-def search_for_nominals_in_raports(arr):
-    input_folder = "./raporty"
-    dane_wyjsciowe = defaultdict(list)
-    res = extract_numbers_from_raports(input_folder)
-    print(res)
-    for wyszukiwana in arr:
-        
-      
-        newvar = str(wyszukiwana)
-        splitted = newvar.split('_')
-        if len(splitted) == 1:
-            splitted.insert(0, '0')
-        print(splitted)
-        
-        if splitted[0] == 'Ø':
-            
-            for n_index, n in enumerate(res):
+def create_file_list(input_path):
+    extracted_file_names = defaultdict(list)
 
-                if n == splitted[1]:
-                    if not is_number(res[n_index-1]) and is_number(res[n_index+2]) and ((res[n_index+4] == 'Średnica') or res[n_index+5] == 'Średnica'):
-                        dane_wyjsciowe[wyszukiwana].append(res[n_index+2])
+    # Przechodzenie przez wszystkie pliki PDF w folderze
+    for filename in os.listdir(input_path):
+        if filename.endswith(".pdf"):
+            file_path = os.path.join(input_path, filename)
 
-        elif splitted[0] == 'Rz':
-            dane_wyjsciowe[wyszukiwana].append(f'{splitted[0]} {splitted[1]} - nie znaleziono')
+            # Otwarcie pliku PDF
+            with fitz.open(file_path) as pdf_document:
+                page = pdf_document[0]
+                text = page.get_text()
+                values = re.findall(r'(?<!\S)-?\d+(?:\.\d+)?(?!\S)|\b\w+\b', text)
+                #print(values)
+                if values[17] == 'ALTERA':
+                    extracted_file_names['nikon-altera'].append(filename)
+                elif values[17] == 'ZAP':
+                    extracted_file_names['mitutoyo-crysta-apex'].append(filename)
+                elif values[17] == 'części':
+                    extracted_file_names['mitutoyo-reczna'].append(filename)
 
-        elif splitted[0] == 'ISO':
-            dane_wyjsciowe[wyszukiwana].append(f'{splitted[0]} {splitted[1]} - nie znaleziono')
-                        
+        if filename.endswith(".rpt"):
+            file_path = os.path.join(input_path, filename)
+            try:
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    text = file.read()
+                    values = re.findall(r'(?<!\S)-?\d+(?:\.\d+)?(?!\S)|\b\w+\b', text)
+                    #print(values)
+                    if values[7] == 'Nazwa':
+                        extracted_file_names['nikon-altera-rpt'].append(filename)
+                
+            except FileNotFoundError:
+                print(f"Error: The file '{file_path}' was not found.")
+            except IOError as e:
+                print(f"Error reading the file '{file_path}': {e}")
+                
+    return extracted_file_names
 
-        elif splitted[0] == 'R':
-            
-            for n_index, n in enumerate(res):
 
-                if n == splitted[1]:
-                    if not is_number(res[n_index-1]) and is_number(res[n_index+2]) and ((res[n_index+4] == 'Promień') or (res[n_index+5] == 'Promień')):
-                        dane_wyjsciowe[wyszukiwana].append(res[n_index+2])
-                    else:
-                        dane_wyjsciowe[wyszukiwana].append('promień nie znaleziono')
+def is_opposite(str1, str2):
 
-        elif splitted[0] == 'M':
-            
-            for n_index, n in enumerate(res):
+    try:
+        num1 = float(str1)
+        num2 = float(str2)
+        return num1 == -num2
+    except ValueError:
+        return False
 
-                if n == splitted[1]:
-                    dane_wyjsciowe[wyszukiwana].append('GWINT nie znaleziono')
-
-       
-        elif splitted[0]  == '0':
-            for n_index, n in enumerate(res):
-
-                if n == splitted[1]:
-
-                    if (res[n_index-1] == 'X') or (res[n_index-1] == 'Y') or (res[n_index-1] == 'Z'):
-                        pass
-
-                    elif (res[n_index+5] == '-' + splitted[1]) or (res[n_index+6] == '-' + splitted[1]):
-                        #print('MINUS')
-                        pass
-
-                    elif is_number(res[n_index-1]) and is_number(res[n_index+1]) and (res[n_index+3] == 'Pozycja' or res[n_index+4] == 'Pozycja'):
-                        dane_wyjsciowe[wyszukiwana].append(res[n_index+2])
-                        
-                    elif not is_number(res[n_index-1]) and is_number(res[n_index+2]):
-                        dane_wyjsciowe[wyszukiwana].append(res[n_index+2])
-                        
-                    elif not is_number(res[n_index-1]) and not is_number(res[n_index+2]):
-                        dane_wyjsciowe[wyszukiwana].append(res[n_index+1])
-
-    return dane_wyjsciowe
+def combine_nested_dicts(main_dict):
+    combined = defaultdict(list)
+    
+    for key, value in main_dict.items():
+        if isinstance(value, list):  # List of nested defaultdicts
+            for sub_dict in value:
+                if isinstance(sub_dict, defaultdict):
+                    for sub_key, sub_value in sub_dict.items():
+                        if isinstance(sub_value, list):
+                            combined[sub_key].extend(sub_value)  # Merge lists
+                        else:
+                            combined[sub_key].append(sub_value)  # Wrap non-list in a list
+        else:
+            print(f"Warning: Unexpected value type for key '{key}', ignoring.")
+    
+    return combined
