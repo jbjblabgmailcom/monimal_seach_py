@@ -1,0 +1,23 @@
+Special strings used in initial excel file to set data type.
+
+special_strings = ["Ø", "Rz", "R", "ISO", "M", "∥", "⏥", "⟂", "⌖"]
+
+
+Ø - średnica
+R - promień
+
+
+M - gwinty M
+Rz - chropowatość Rz
+ISO - ignorować
+
+
+∥ - rownoleglosc
+
+
+⏥  - plaskosc
+
+
+⟂ - prostopadłość
+
+⌖ - pozycja lub tolerancja pozycji
